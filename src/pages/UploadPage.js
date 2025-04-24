@@ -3,8 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react'; // <<< Import useAuth0
 import { // <<< Import Icons
-  HomeIcon, UserCircleIcon, InformationCircleIcon, ClockIcon, PhoneIcon,
-  ArrowRightOnRectangleIcon, ArrowLeftOnRectangleIcon, ArrowLeftIcon
+  HomeIcon, InformationCircleIcon, ClockIcon, PhoneIcon,
+  ArrowRightOnRectangleIcon, ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
 export default function UploadPage() {

@@ -4,7 +4,6 @@ import { Link, useNavigate } from "react-router-dom"; // ยังคงต้�
 import { useAuth0 } from '@auth0/auth0-react'; // ต้องใช้ใน Navbar
 import {
   HomeIcon,
-  UserCircleIcon,
   InformationCircleIcon,
   ClockIcon,
   PhoneIcon,
