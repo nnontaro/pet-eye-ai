@@ -2,46 +2,41 @@
 import React from 'react';
 import { Link } from "react-router-dom";
 import { useAuth0 } from '@auth0/auth0-react';
-import {
-  HomeIcon, UserCircleIcon, InformationCircleIcon, ClockIcon, PhoneIcon,
-  ArrowRightOnRectangleIcon, ArrowLeftOnRectangleIcon
-} from '@heroicons/react/24/outline';
+import { HomeIcon, InformationCircleIcon, ClockIcon, PhoneIcon, ArrowRightOnRectangleIcon, ArrowLeftOnRectangleIcon } from '@heroicons/react/24/outline';
 
-// --- รับ Prop onAboutClick ---
-export default function Navbar({ onAboutClick }) {
-    const { /* ... auth0 state ... */ } = useAuth0();
-    const scrollToTop = (event) => { /* ... */ };
+export default function Navbar() {
+    const { loginWithRedirect, logout, user, isAuthenticated, isLoading } = useAuth0();
 
     return (
-        <nav className="bg-gray-900 text-gray-200 p-3 shadow-lg sticky top-0 z-50">
-          <div className="container mx-auto flex justify-between items-center">
-            {/* Logo */}
-            <Link to="/" onClick={scrollToTop} className="flex items-center space-x-2">
-               {/* ... */}
+        <nav className="bg-gray-900 text-gray-200 p-4 shadow-lg sticky top-0 z-50">
+          <div className="flex justify-between items-center px-4">
+            <Link to="/" className="text-xl font-bold text-white">
+              PetCare EyeSense
             </Link>
-            {/* Links */}
-            <div className="flex items-center space-x-3 md:space-x-5">
-               <button onClick={scrollToTop} className="hover:text-white flex items-center space-x-1 cursor-pointer">
-                <HomeIcon className="h-4 w-4" /><span className="hidden md:inline text-sm">หน้าหลัก</span>
-              </button>
-
-              {/* --- ปุ่ม "เกี่ยวกับ" ใช้ Button และเรียก Prop --- */}
-              <button
-                  onClick={onAboutClick} // <<< เรียกใช้ Prop ที่ส่งมาจาก Layout
-                  className="hover:text-white flex items-center space-x-1 cursor-pointer"
-              >
-                  <InformationCircleIcon className="h-4 w-4" />
-                  <span className="hidden md:inline text-sm">เกี่ยวกับ</span>
-              </button>
-              {/* -------------------------------------------- */}
-
-              <Link to="/history" className="hover:text-white flex items-center space-x-1">
-                 <ClockIcon className="h-4 w-4" /><span className="hidden md:inline text-sm">ประวัติ</span>
+            <div className="flex items-center space-x-4 md:space-x-6">
+              <Link to="/" className="hover:text-yellow-300 flex items-center space-x-1">
+                <HomeIcon className="h-5 w-5" /><span>หน้าหลัก</span>
               </Link>
-              <Link to="/contact" className="hover:text-white flex items-center space-x-1">
-                <PhoneIcon className="h-4 w-4" /><span className="hidden md:inline text-sm">ติดต่อ</span>
+              <Link to="/history" className="hover:text-yellow-300 flex items-center space-x-1">
+                 <ClockIcon className="h-5 w-5" /><span>ประวัติ</span>
               </Link>
-              {/* ... Login/Logout Buttons ... */}
+              {/* Login/Logout Buttons */}
+              {!isLoading && !isAuthenticated && (
+                  <button onClick={() => loginWithRedirect()} className="bg-yellow-400 hover:bg-yellow-500 text-black font-semibold py-2 px-4 rounded-lg flex items-center space-x-2">
+                      <ArrowRightOnRectangleIcon className="h-5 w-5" />
+                      <span>เข้าสู่ระบบ</span>
+                  </button>
+              )}
+              {!isLoading && isAuthenticated && (
+                  <>
+                      <img src={user.picture} alt={user.name} className="h-8 w-8 rounded-full" />
+                      <span className='text-sm hidden lg:inline'>{user.name || user.email}</span>
+                      <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} className="hover:text-white flex items-center space-x-1">
+                          <ArrowLeftOnRectangleIcon className="h-5 w-5" />
+                          <span className="hidden md:inline">ออกจากระบบ</span>
+                      </button>
+                  </>
+              )}
             </div>
           </div>
         </nav>

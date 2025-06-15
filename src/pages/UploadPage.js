@@ -1,30 +1,30 @@
 // src/pages/UploadPage.js
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth0 } from '@auth0/auth0-react'; // <<< Import useAuth0
-import { // <<< Import Icons
+import { useAuth0 } from '@auth0/auth0-react';
+import {
   HomeIcon, InformationCircleIcon, ClockIcon, PhoneIcon,
   ArrowRightOnRectangleIcon, ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
+import SymptomChecklist from '../components/SymptomChecklist';
+
 export default function UploadPage() {
     const { petType } = useParams();
     const navigate = useNavigate();
-
-    // --- 1. เปลี่ยนชื่อ isLoading จาก useAuth0 เป็น isAuthLoading ---
     const {
         loginWithRedirect, logout, user, isAuthenticated,
-        isLoading: isAuthLoading // <<< เปลี่ยนชื่อตรงนี้
+        isLoading: isAuthLoading,
+        getAccessTokenSilently // <<< VVVV จุดแก้ไขที่ 1: เพิ่ม getAccessTokenSilently เข้ามา
     } = useAuth0();
-    // -------------------------------------------------------
 
     const [selectedFile, setSelectedFile] = useState(null);
     const [preview, setPreview] = useState(null);
-
-    // --- 2. ใช้ isLoading, setIsLoading สำหรับ State การวิเคราะห์ตามปกติ ---
     const [isLoading, setIsLoading] = useState(false);
-    // ------------------------------------------------------------
     const [result, setResult] = useState(null);
+    const [showChecklist, setShowChecklist] = useState(false);
+    const [analysisDataForSubmission, setAnalysisDataForSubmission] = useState(null);
 
     useEffect(() => {
         if (!selectedFile) { setPreview(undefined); return; }
@@ -37,23 +37,91 @@ export default function UploadPage() {
         if (!event.target.files || event.target.files.length === 0) { setSelectedFile(null); return; }
         setSelectedFile(event.target.files[0]);
         setResult(null);
+        setShowChecklist(false);
     };
 
     const handleUploadAndAnalyze = async () => {
         if (!selectedFile) { alert("กรุณาเลือกไฟล์รูปภาพก่อน"); return; }
-        // --- 3. ใช้ setIsLoading สำหรับการวิเคราะห์ ---
         setIsLoading(true);
-        // --------------------------------------
+        setShowChecklist(false);
         setResult(null);
         console.log("Uploading...", selectedFile.name, petType);
-        // --- Mock API call ---
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const mockResult = { disease: Math.random() > 0.5 ? 'ต้อกระจก (จำลอง)' : 'ตาแดง (จำลอง)', confidence: Math.random().toFixed(2), recommendation: 'ควรปรึกษาสัตวแพทย์ (จำลอง)' };
+
+        // This part remains a mock. You might want to replace it with a real API call later.
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const mockResult = {
+            id: `analysis_${Date.now()}`,
+            disease: Math.random() > 0.5 ? 'ต้อกระจก (จำลอง)' : 'ตาแดง (จำลอง)',
+            confidence: Math.random().toFixed(2),
+            recommendation: 'ควรปรึกษาสัตวแพทย์ (จำลอง)'
+        };
         setResult(mockResult);
-        // --- 3. ใช้ setIsLoading สำหรับการวิเคราะห์ ---
+
+        setAnalysisDataForSubmission({
+             analysisId: mockResult.id,
+             initialDisease: mockResult.disease,
+             initialConfidence: parseFloat(mockResult.confidence) // ส่ง confidence ไปด้วย
+        });
+        setShowChecklist(true);
         setIsLoading(false);
-        // --------------------------------------
     };
+
+
+    // VVVV จุดแก้ไขที่ 2: เขียนฟังก์ชันนี้ใหม่ทั้งหมด VVVV
+    const handleSymptomSubmit = async (selectedSymptoms) => {
+        if (!analysisDataForSubmission) {
+            alert("เกิดข้อผิดพลาด: ไม่พบข้อมูลจากการวิเคราะห์รูปภาพ");
+            return;
+        }
+
+        const payload = {
+            initial_analysis_data: analysisDataForSubmission,
+            symptoms: selectedSymptoms
+        };
+
+        const apiUrl = 'http://localhost:8888/analyze/combined';
+        console.log("Preparing to send data to backend:", apiUrl, payload);
+        setIsLoading(true); // เริ่ม Loading ตอนจะส่งข้อมูล
+
+        try {
+            // 1. ขอ Token จาก Auth0 ก่อน
+            console.log("Requesting Access Token...");
+            const token = await getAccessTokenSilently({
+                authorizationParams: {
+                    audience: 'https://api.peteye.ai',
+                },
+            });
+            console.log("Access Token received successfully.");
+
+            // 2. ส่ง Request ไปยัง Backend พร้อมแนบ Token ใน Header
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`, // <<< ส่วนที่สำคัญที่สุด!
+                },
+                body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${JSON.stringify(errorData)}`);
+            }
+
+            const finalResultData = await response.json();
+            console.log("Success! Final Combined Analysis Result:", finalResultData);
+
+            // ส่งผลลัพธ์ไปที่หน้า Result
+            navigate('/result', { state: { resultData: finalResultData } });
+
+        } catch (error) {
+            console.error('Error calling the backend API:', error);
+            alert(`เกิดข้อผิดพลาดในการเชื่อมต่อกับ Backend: ${error.message}`);
+        } finally {
+            setIsLoading(false); // หยุด Loading ไม่ว่าจะสำเร็จหรือล้มเหลว
+        }
+    };
+
 
     const scrollToTop = () => { window.scrollTo({ top: 0, behavior: 'smooth' }); };
     const handleAboutClick = () => { navigate('/', { state: { scrollToAnalyzer: true }, replace: true }); };
@@ -61,12 +129,11 @@ export default function UploadPage() {
 
     return (
         <div>
-            {/* === Navbar === */}
-            <nav className="bg-gray-900 text-gray-200 p-3 shadow-lg sticky top-0 z-50">
+            {/* Navbar remains the same */}
+            <nav className="bg-gray-900 text-gray-200 p-5 shadow-lg sticky top-0 z-50">
               <div className="container mx-auto flex justify-between items-center">
                 <Link to="/" onClick={handleHomeClick} className="flex items-center space-x-2">
-                  <div className="bg-yellow-400 p-2 rounded-md"><span className="font-bold text-black text-lg">B</span></div>
-                  <span className="text-sm font-semibold hidden sm:inline">PUPPY EYE CHECK</span>
+                  <span className="text-sm font-semibold hidden sm:inline">PetCare EyeSense</span>
                 </Link>
                 <div className="flex items-center space-x-3 md:space-x-5">
                    <button onClick={handleHomeClick} className="hover:text-white flex items-center space-x-1 cursor-pointer">
@@ -82,29 +149,13 @@ export default function UploadPage() {
                   <Link to="/contact" className="hover:text-white flex items-center space-x-1">
                     <PhoneIcon className="h-4 w-4" /><span className="hidden md:inline text-sm">ติดต่อ</span>
                   </Link>
-                  {/* --- 4. ใช้ isAuthLoading ในเงื่อนไข Navbar --- */}
-                  {!isAuthLoading && !isAuthenticated && (
-                      <button onClick={() => loginWithRedirect()} className="hover:text-white flex items-center space-x-1">
-                          <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                          <span className="hidden md:inline text-sm">เข้าสู่ระบบ / สมัคร</span>
-                      </button>
-                  )}
-                  {!isAuthLoading && isAuthenticated && (
-                      <>
-                          {user?.picture && ( <img src={user.picture} alt={user?.name} className="h-6 w-6 rounded-full" /> )}
-                          <span className='text-sm hidden lg:inline'>{user?.name || user?.email}</span>
-                          <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} className="hover:text-white flex items-center space-x-1">
-                              <ArrowLeftOnRectangleIcon className="h-5 w-5" />
-                              <span className="hidden md:inline text-sm">ออกจากระบบ</span>
-                          </button>
-                      </>
-                  )}
-                  {/* ------------------------------------- */}
+                  {!isAuthLoading && !isAuthenticated && ( <button onClick={() => loginWithRedirect()} className="hover:text-white flex items-center space-x-1"> <ArrowRightOnRectangleIcon className="h-5 w-5" /> <span className="hidden md:inline text-sm">เข้าสู่ระบบ / สมัคร</span> </button> )}
+                  {!isAuthLoading && isAuthenticated && ( <> {user?.picture && ( <img src={user.picture} alt={user?.name} className="h-6 w-6 rounded-full" /> )} <span className='text-sm hidden lg:inline'>{user?.name || user?.email}</span> <button onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })} className="hover:text-white flex items-center space-x-1"> <ArrowLeftOnRectangleIcon className="h-5 w-5" /> <span className="hidden md:inline text-sm">ออกจากระบบ</span> </button> </> )}
                 </div>
               </div>
             </nav>
-            {/* ====================================== */}
 
+            {/* Page Content remains the same */}
             <div className="container mx-auto p-4 md:p-8">
                 <h1 className="text-3xl font-bold mb-4 mt-4">วิเคราะห์ภาพถ่ายดวงตา{petType === 'สุนัข' ? 'สุนัข' : 'แมว'}</h1>
                 <p className="mb-6 text-gray-600">กรุณาอัปโหลดภาพถ่ายดวงตาของ{petType === 'สุนัข' ? 'สุนัข' : 'แมว'}ที่ชัดเจน</p>
@@ -113,17 +164,18 @@ export default function UploadPage() {
                     <input id="file-upload" name="file-upload" type="file" accept="image/*" onChange={handleFileChange} className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"/>
                     {preview && ( <div className="mt-4 border rounded-md p-2 inline-block"> <p className="text-sm text-gray-500 mb-1">รูปที่เลือก:</p> <img src={preview} alt="Preview" className="max-w-xs max-h-48 object-contain rounded"/> </div> )}
                 </div>
-                {/* --- 5. ใช้ isLoading สำหรับปุ่มและผลวิเคราะห์ --- */}
+
                 <button
                     onClick={handleUploadAndAnalyze}
                     disabled={!selectedFile || isLoading}
                     className={`w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-white shadow-md transition ${!selectedFile || isLoading ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
                 >
-                    {isLoading ? 'กำลังวิเคราะห์...' : 'เริ่มการวิเคราะห์'}
+                    {isLoading && !showChecklist ? 'กำลังวิเคราะห์ (ขั้นตอนแรก)...' : 'เริ่มการวิเคราะห์'}
                 </button>
+
                 {result && !isLoading && (
                     <div className="mt-8 p-6 bg-gray-50 rounded-lg shadow-inner">
-                       <h2 className="text-xl font-semibold mb-3">ผลการวิเคราะห์ (จำลอง):</h2>
+                       <h2 className="text-xl font-semibold mb-3">ผลการวิเคราะห์เบื้องต้น (จำลอง):</h2>
                        {result.error ? (<p className="text-red-600">{result.error}</p>) : (
                            <ul className="space-y-1 list-disc list-inside">
                                <li><strong>ผลวินิจฉัยเบื้องต้น:</strong> {result.disease}</li>
@@ -133,7 +185,13 @@ export default function UploadPage() {
                        )}
                     </div>
                 )}
-                {/* ------------------------------------------ */}
+
+                {showChecklist && (
+                    <div className="mt-8">
+                         {/* Pass the corrected handler name */}
+                         <SymptomChecklist onSubmitSymptoms={handleSymptomSubmit} isLoading={isLoading} />
+                    </div>
+                )}
             </div>
         </div>
     );
